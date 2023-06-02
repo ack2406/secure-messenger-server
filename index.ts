@@ -13,84 +13,117 @@ const io = require("socket.io")(server, {
 
 let users: { [name: string]: Socket } = {};
 
-const onConnection = (socket: Socket) => {
+function onConnection(socket: Socket) {
   console.log(`${socket.id} connected`);
 
-  // when a user logs in, we add him to the users object
-  socket.on("join", (name: string) => {
-    console.log(`${socket.id} joined as ${name}`);
+  function onLogin(name: string) {
+    console.log(`${name} connected`);
 
     users[name] = socket;
+  }
 
-    socket.emit("join", name);
-  });
+  function onInvite(inviter: string, invitee: string) {
+    console.log(`${inviter} invited ${invitee}`);
 
-  socket.on("invite", (inviter: string, invitee: string) => {
-    console.log(`"${inviter}" invited user "${invitee}"`);
-
-    // if the user is not connected, we send a message to the sender
     if (!users[invitee]) {
-      socket.emit("unavailable");
+      return;
     }
-    // if the user is connected, we send a message to the sender and to the receiver
-    else {
-      users[invitee].emit("invite", inviter, invitee);
+
+    users[invitee].emit("invite", inviter);
+  }
+
+  function onAccept(inviter: string, invitee: string) {
+    console.log(`${invitee} accepted ${inviter}`);
+
+    if (!users[inviter]) {
+      return;
     }
-  });
 
-  socket.on("accept", (inviter: string, invitee: string) => {
-    console.log(`"${invitee}" accepted "${inviter}"`);
+    users[inviter].emit("accept", invitee);
+  }
 
-    // we send a message to the sender and to the receiver
-    users[inviter].emit("accept", inviter, invitee);
-  });
+  function onReject(inviter: string, invitee: string) {
+    console.log(`${invitee} rejected ${inviter}`);
 
-  // when invitee accepted the invitation, we send details to the inviter
-  socket.on("sendDetails", (inviter: string, invitee: string) => {
-    console.log(`"${invitee}" accepted "${inviter}"`);
-
-    // we send a message to the sender and to the receiver
-    users[invitee].emit("sendDetails", inviter);
-  });
-
-  socket.on("decline", (inviter: string, invitee: string) => {
-    console.log(`"${inviter}" declined "${invitee}"`);
-
-    // we send a message to the sender and to the receiver
-    users[inviter].emit("decline", invitee);
-  });
-
-  // when a user sends a message, we send it to the receiver and back to the sender for confirmation
-  socket.on("message", (msg: string, sender: string, receiver: string) => {
-    console.log(`"${sender}" sent "${msg}" to "${receiver}"`);
-
-    console.log(users[receiver]);
-
-    users[receiver].emit("getMessage", msg, sender);
-  });
-
-  socket.on(
-    "file",
-    (file: File, sender: string, receiver: string, fileName: string) => {
-      console.log(`"${sender}" sent file: "${file.name}" to "${receiver}"`);
-
-      users[receiver].emit("getFile", file, sender, fileName);
+    if (!users[inviter]) {
+      return;
     }
-  );
 
-  // when a user disconnects, we remove him from the users object
-  socket.on("disconnect", () => {
+    users[inviter].emit("reject", invitee);
+  }
+
+  function onAcceptResponse(inviter: string, invitee: string) {
+    console.log(`${inviter} accepted ${invitee}`);
+
+    if (!users[invitee]) {
+      return;
+    }
+
+    users[invitee].emit("accept-response", inviter);
+  }
+
+  function onMessage(
+    message: string | ArrayBuffer,
+    sender: string,
+    receiver: string
+  ) {
+    if (typeof message === "string") {
+      console.log(`${sender} sent ${message} to ${receiver}`);
+    } else {
+      console.log(`${sender} sent a file to ${receiver}`);
+    }
+
+    if (!users[receiver]) {
+      return;
+    }
+
+    users[receiver].emit("message", message, sender);
+  }
+
+  function onSessionCreate(
+    sessionKey: string,
+    sender: string,
+    receiver: string
+  ) {
+    console.log(`${sender} created session with ${receiver}`);
+
+    if (!users[receiver]) {
+      return;
+    }
+
+    users[receiver].emit("session-create", sessionKey, sender);
+  }
+
+  function onSessionDestroy(sender: string, receiver: string) {
+    console.log(`${sender} destroyed session with ${receiver}`);
+    if (!users[receiver]) {
+      return;
+    }
+
+    users[receiver].emit("session-destroy", sender);
+  }
+
+  function onDisconnect() {
     console.log(`${socket.id} disconnected`);
 
-    // we loop through the users object to find the user that disconnected
-    for (const [name, user] of Object.entries(users)) {
-      if (user.id === socket.id) {
+    for (let name in users) {
+      if (users[name].id === socket.id) {
         delete users[name];
         break;
       }
     }
-  });
-};
+  }
+
+  socket.on("login", onLogin);
+  socket.on("invite", onInvite);
+  socket.on("accept", onAccept);
+  socket.on("reject", onReject);
+  socket.on("accept-response", onAcceptResponse);
+  socket.on("message", onMessage);
+  socket.on("session-create", onSessionCreate);
+  socket.on("session-destroy", onSessionDestroy);
+  socket.on("disconnect", onDisconnect);
+}
 
 io.on("connection", onConnection);
 
