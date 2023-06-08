@@ -32,14 +32,14 @@ function onConnection(socket: Socket) {
     users[invitee].emit("invite", inviter);
   }
 
-  function onAccept(inviter: string, invitee: string) {
+  function onAccept(inviter: string, invitee: string, pubkey: string) {
     console.log(`${invitee} accepted ${inviter}`);
 
     if (!users[inviter]) {
       return;
     }
 
-    users[inviter].emit("accept", invitee);
+    users[inviter].emit("accept", invitee, pubkey);
   }
 
   function onReject(inviter: string, invitee: string) {
@@ -52,32 +52,43 @@ function onConnection(socket: Socket) {
     users[inviter].emit("reject", invitee);
   }
 
-  function onAcceptResponse(inviter: string, invitee: string) {
+  function onAcceptResponse(inviter: string, invitee: string, pubkey: string) {
     console.log(`${inviter} accepted ${invitee}`);
 
     if (!users[invitee]) {
       return;
     }
 
-    users[invitee].emit("accept-response", inviter);
+    users[invitee].emit("accept-response", inviter, pubkey);
   }
 
   function onMessage(
-    message: string | ArrayBuffer,
+    message: string,
     sender: string,
     receiver: string
   ) {
-    if (typeof message === "string") {
-      console.log(`${sender} sent ${message} to ${receiver}`);
-    } else {
-      console.log(`${sender} sent a file to ${receiver}`);
-    }
-
     if (!users[receiver]) {
       return;
     }
 
+    console.log(`${sender} sent ${message} to ${receiver}`);
+
     users[receiver].emit("message", message, sender);
+  }
+
+  function onFileMessage(
+    file: ArrayBuffer,
+    fileName: string,
+    sender: string,
+    receiver: string
+  ) {
+    if (!users[receiver]) {
+      return;
+    }
+
+    console.log(`${sender} sent file ${fileName} to ${receiver}`);
+
+    users[receiver].emit("file-message", file, fileName, sender);
   }
 
   function onSessionCreate(
@@ -120,6 +131,7 @@ function onConnection(socket: Socket) {
   socket.on("reject", onReject);
   socket.on("accept-response", onAcceptResponse);
   socket.on("message", onMessage);
+  socket.on("file-message", onFileMessage)
   socket.on("session-create", onSessionCreate);
   socket.on("session-destroy", onSessionDestroy);
   socket.on("disconnect", onDisconnect);
