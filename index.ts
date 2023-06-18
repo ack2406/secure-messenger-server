@@ -8,7 +8,7 @@ const io = require("socket.io")(server, {
   cors: {
     origin: "*",
   },
-  maxHttpBufferSize: 1e8,
+  maxHttpBufferSize: 1e9,
 });
 
 let users: { [name: string]: Socket } = {};
@@ -77,7 +77,7 @@ function onConnection(socket: Socket) {
   }
 
   function onFileMessage(
-    file: ArrayBuffer,
+    file: string,
     fileName: string,
     sender: string,
     receiver: string
@@ -89,6 +89,9 @@ function onConnection(socket: Socket) {
     console.log(`${sender} sent file ${fileName} to ${receiver}`);
 
     users[receiver].emit("file-message", file, fileName, sender);
+
+    users[sender].emit("progress-bar");
+    console.log(sender)
   }
 
   function onSessionCreate(
